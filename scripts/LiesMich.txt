@@ -1,0 +1,8 @@
+Willkommen bei OpenLibry!
+
+So starten Sie durch:
+1. Falls sich der Browser nicht automatisch geöffnet hat, rufen Sie im Browser auf: http://localhost:3000
+
+
+WICHTIG:
+Die Datenbank befindet sich im Unterordner 'app/database'. Erstellen Sie regelmäßig Kopien dieses Ordners zur Datensicherung!
