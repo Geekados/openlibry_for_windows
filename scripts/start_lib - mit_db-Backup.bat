@@ -73,9 +73,48 @@ if %errorlevel% equ 0 (
     exit
 )
 
+:: 5. STARTVORGANG
 echo [5/5] OpenLibry wird gestartet...
 cd /d "%APP_DIR%"
-start /b "" cmd /c "timeout /t 5 >nul && start http://localhost:%PORT%"
-"%NODE_EXE%" "node_modules\next\dist\bin\next" start -p %PORT%
 
-pause
+:: Browser mit kurzer Verzögerung starten
+start /b "" cmd /c "timeout /t 5 >nul && start http://localhost:%PORT%"
+
+:: Der eigentliche Startbefehl (im Hintergrund via START /B)
+:: Damit die Batch-Datei weiterlaufen und Eingaben abfangen kann
+start /b "" "%NODE_EXE%" "node_modules\next\dist\bin\next" start -p %PORT% >nul 2>&1
+
+:STATUS_LOOP
+cls
+echo ===========================================================
+echo            OpenLibry läuft im Hintergrund
+echo ===========================================================
+echo.
+echo  ZUGRIFF:
+echo  Oeffne deinen Browser unter: http://localhost:%PORT%
+echo.
+echo  -----------------------------------------------------------
+echo  WICHTIG:
+echo  Dieses Fenster NICHT schliessen, waehrend du arbeitest!
+echo  Die Datenbank ist aktiv.
+echo  -----------------------------------------------------------
+echo.
+echo  BEENDEN:
+echo  Druecke [Q] um OpenLibry sicher zu beenden.
+echo.
+
+:: Abfrage der Taste
+set /p "userinput=Eingabe: "
+
+if /i "%userinput%"=="q" (
+    echo.
+    echo [INFO] OpenLibry wird beendet...
+    :: Beendet den Node-Prozess, der auf dem Port lauscht
+    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :%PORT% ^| findstr LISTENING') do taskkill /f /pid %%a >nul 2>&1
+    echo [OK] Server gestoppt.
+    timeout /t 2 >nul
+    exit
+)
+
+:: Falls eine falsche Taste gedrückt wurde, springe zurück zum Status
+goto STATUS_LOOP
