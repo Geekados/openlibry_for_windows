@@ -4,59 +4,78 @@ cd /d "%~dp0"
 
 :: --- KONFIGURATION ---
 set "PORT=3000"
+set "KEEP_MAX_BACKUPS=20"
+:: Langzeit-Archiv auf das Doppelte begrenzen
+set /a "MAX_ARCHIVE_BACKUPS=%KEEP_MAX_BACKUPS% * 2"
+
 set "NODE_EXE=%~dp0..\node\node.exe"
 set "APP_DIR=%~dp0..\app"
-set "DB_FILE=%~dp0..\app\database\dev.db"
-set "BACKUP_DIR=%~dp0..\app\database\backups"
+set "BACKUP_BASE=%~dp0..\app\backups"
+set "DB_SRC=%~dp0..\app\database"
+set "IMG_SRC=%~dp0..\app\images"
 
 echo ========================================
-echo   OpenLibry Management System
+echo   OpenLibry Backup- und Start-System
 echo ========================================
 
-:: 1. BACKUP-ORDNER & ZEITSTEMPEL
-if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
+:: 1. VERZEICHNISSE ANLEGEN
+if not exist "%BACKUP_BASE%\database\daily" mkdir "%BACKUP_BASE%\database\daily"
+if not exist "%BACKUP_BASE%\database\archive" mkdir "%BACKUP_BASE%\database\archive"
+if not exist "%BACKUP_BASE%\images" mkdir "%BACKUP_BASE%\images"
 
-:: Datum holen (Format: YYYY-MM-DD)
+:: Datum (Zeitstempel) generieren (Format: YYYY-MM-DD)
 for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set datetime=%%I
-set "STAMP=%datetime:~0,4%-%datetime:~4,2%-%datetime:~6,2%"
-set "BACKUP_FILE=%BACKUP_DIR%\backup_%STAMP%.db"
+set "STAMP_DAY=%datetime:~0,4%-%datetime:~4,2%-%datetime:~6,2%"
+set "STAMP_MONTH=%datetime:~0,4%-%datetime:~4,2%"
 
-:: 2. BACKUP DURCHFÜHREN (Nur wenn heute noch keins gemacht wurde)
-if not exist "%BACKUP_FILE%" (
-    echo [1/3] Erstelle Sicherheits-Backup...
-    if exist "%DB_FILE%" (
-        copy "%DB_FILE%" "%BACKUP_FILE%" /Y >nul
-        echo [OK] Backup erstellt: backup_%STAMP%.db
-        
-        :: Alte Backups loeschen (aelter als 30 Tage)
-        forfiles /p "%BACKUP_DIR%" /m *.db /d -30 /c "cmd /c del @path" 2>nul
-    ) else (
-        echo [!] Hinweis: Keine Datenbank zum Sichern gefunden.
+:: 2. TÄGLICHE ROTATION (Die letzten %KEEP_MAX_BACKUPS% Tage)
+set "DB_DAILY_ZIP=%BACKUP_BASE%\database\daily\bkp_db_daily_%STAMP_DAY%.zip"
+if not exist "%DB_DAILY_ZIP%" (
+    echo [1/5] Packe taegliches DB-Backup (%STAMP_DAY%)...
+    powershell -Command "Compress-Archive -Path '%DB_SRC%' -DestinationPath '%DB_DAILY_ZIP%' -Force"
+    
+    pushd "%BACKUP_BASE%\database\daily"
+    for /f "skip=%KEEP_MAX_BACKUPS% delims=" %%F in ('dir "bkp_db_daily_*.zip" /b /o-d') do (
+        echo [DELETE] Entferne altes Tages-Backup: %%F
+        del "%%F"
     )
-) else (
-    echo [1/3] Backup fuer heute bereits vorhanden.
+    popd
 )
+
+:: 3. MONATLICHE LANGZEIT-SICHERUNG (Begrenzt auf %MAX_ARCHIVE_BACKUPS%)
+set "DB_ARCHIVE_ZIP=%BACKUP_BASE%\database\archive\bkp_db_archive_%STAMP_MONTH%.zip"
+if not exist "%DB_ARCHIVE_ZIP%" (
+    echo [2/5] Erstelle neues Monats-Archiv der Datenbank (%STAMP_MONTH%)...
+    powershell -Command "Compress-Archive -Path '%DB_SRC%' -DestinationPath '%DB_ARCHIVE_ZIP%' -Force"
+    
+    pushd "%BACKUP_BASE%\database\archive"
+    for /f "skip=%MAX_ARCHIVE_BACKUPS% delims=" %%F in ('dir "bkp_db_archive_*.zip" /b /o-d') do (
+        echo [DELETE] Entferne altes Monats-Archiv: %%F
+        del "%%F"
+    )
+    popd
+)
+
+:: 4. BILDER-SICHERUNG (Monatlich, taeglich aktualisiert)
+set "IMG_ZIP=%BACKUP_BASE%\images\bkp_images_%STAMP_MONTH%.zip"
+echo [3/5] Aktualisiere Image-Backup (%STAMP_MONTH%)...
+powershell -Command "if (Test-Path '%IMG_SRC%') { Compress-Archive -Path '%IMG_SRC%' -DestinationPath '%IMG_ZIP%' -Force }"
 
 echo.
 
 :: 3. PRÜFUNG: LÄUFT DER SERVER SCHON?
-echo [2/3] Pruefe Instanz-Status...
+echo [4/5] Pruefe Instanz-Status...
 netstat -ano | findstr /R /C:":%PORT% .*LISTENING" >nul
 if %errorlevel% equ 0 (
-    echo [INFO] OpenLibry ist bereits aktiv. Oeffne Browser...
+    echo [INFO] OpenLibry aktiv. Browser wird geoeffnet...
     start http://localhost:%PORT%
     timeout /t 3 >nul
     exit
 )
 
-:: 4. SERVER STARTEN
-echo [3/3] OpenLibry wird gestartet...
+echo [5/5] OpenLibry wird gestartet...
 cd /d "%APP_DIR%"
-
-:: Browser mit Verzoegerung oeffnen
 start /b "" cmd /c "timeout /t 5 >nul && start http://localhost:%PORT%"
-
-:: Next.js Server ausfuehren
 "%NODE_EXE%" "node_modules\next\dist\bin\next" start -p %PORT%
 
 pause
