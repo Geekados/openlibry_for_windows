@@ -2,7 +2,7 @@ Vorbereitung:
 Nodejs portable herunterladen und in 
 	C:\InnoInstaller\OpenLibry_Build\node 
 entpacken 
-Quelle: https://nodejs.org/en/download/archive/v22.22.1
+Quelle: https://nodejs.org/en/download/
 
 openLibry herunterladen und in
 	C:\InnoInstaller\OpenLibry_Build\app
@@ -29,7 +29,9 @@ set PATH=C:\InnoInstaller\OpenLibry_Build\node;%PATH%
 npm install prisma @prisma/client
 
 :: 4. Restliche Abhängigkeiten (ohne Test-Tools wie Cypress)
+:: Aber dotenv explizit nachinstallieren (fehlt sonst)
 npm install --omit=dev
+npm install dotenv
 
 :: 5. Prisma Client generieren (basiert auf deiner schema.prisma)
 npx prisma generate
