@@ -16,6 +16,8 @@
 ## Features im Start-Script:
 - Automatisches erstellen eines Backups der Datenbank undbenutzerspezifischen Daten bei jedem Start von openLibry
 - Definierte Aufbewahrungszeiträume, automatisches Bereinigen der ältesten Backups
+- Sicheres Beenden des openLibry - Hintergrundprozesses
+- Verhindert Mehrfach-Start des openLibry-Hintergrundprozesses
    
 
 ## Changelog v1.8.1:
